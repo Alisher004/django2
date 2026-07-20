@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Урок 2: Django App, Admin Panel, Models и Superuser</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-dark: #0a1628; --bg-mid: #0d3b2e; --bg-light: #1a2332;
+      --accent: #44b78b; --accent2: #ffd93d; --accent3: #6bcb77; --accent4: #4d96ff;
+      --text: #ffffff; --text-muted: #c8d6e5;
+      --card-bg: rgba(255,255,255,0.08); --card-border: rgba(255,255,255,0.15);
+      --shadow: 0 8px 32px rgba(0,0,0,0.4); --radius: 20px; --nav-h: 72px;
+    }
+    html, body {
+      height: 100%; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, var(--bg-dark) 0%, var(--bg-mid) 50%, var(--bg-light) 100%);
+      color: var(--text); overflow: hidden;
+    }
+    .particles { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+    .particle { position: absolute; border-radius: 50%; opacity: 0.15; animation: float linear infinite; }
+    @keyframes float {
+      0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+      10%, 90% { opacity: 0.15; }
+      100% { transform: translateY(-10vh) rotate(720deg); opacity: 0; }
+    }
+    #start-screen {
+      position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; text-align: center; padding: 24px;
+      background: linear-gradient(135deg, #0a1628 0%, #0d3b2e 40%, #1a2332 100%);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    #start-screen.hidden { opacity: 0; transform: scale(1.05); pointer-events: none; }
+    .start-logo { margin-bottom: 16px; animation: bounce 2s ease-in-out infinite; }
+    .start-logo svg { width: clamp(4rem, 12vw, 7rem); height: clamp(4rem, 12vw, 7rem); }
+    @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-16px); } }
+    .start-title {
+      font-size: clamp(1.8rem, 5vw, 3rem); font-weight: 800; line-height: 1.2; margin-bottom: 12px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2), var(--accent3));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .start-subtitle { font-size: clamp(1rem, 2.5vw, 1.3rem); color: var(--text-muted); margin-bottom: 8px; }
+    .start-badge {
+      display: inline-block; background: rgba(68,183,139,0.2); border: 2px solid var(--accent);
+      border-radius: 50px; padding: 6px 20px; font-size: 0.95rem; font-weight: 600; color: var(--accent); margin-bottom: 32px;
+    }
+    .btn-start {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: linear-gradient(135deg, var(--accent), #2d8f6f); color: white; border: none;
+      border-radius: 50px; padding: 18px 48px; font-size: 1.2rem; font-weight: 700; cursor: pointer;
+      box-shadow: 0 6px 24px rgba(68,183,139,0.5); transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .btn-start:hover { transform: translateY(-3px) scale(1.04); box-shadow: 0 10px 32px rgba(68,183,139,0.6); }
+    .start-features { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; margin-top: 40px; }
+    .start-feature {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: 12px; padding: 10px 18px; font-size: 0.9rem; color: var(--text-muted);
+    }
+    #presentation {
+      position: fixed; inset: 0; display: flex; flex-direction: column; z-index: 10;
+      opacity: 0; pointer-events: none; transition: opacity 0.5s ease;
+    }
+    #presentation.active { opacity: 1; pointer-events: all; }
+    .progress-bar-wrap { position: relative; height: 6px; background: rgba(255,255,255,0.1); flex-shrink: 0; }
+    .progress-bar {
+      height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent3), var(--accent2));
+      border-radius: 0 3px 3px 0; transition: width 0.4s cubic-bezier(0.4,0,0.2,1);
+    }
+    .progress-info {
+      position: absolute; top: 12px; right: 20px; font-size: 0.8rem; color: var(--text-muted);
+      background: rgba(0,0,0,0.4); padding: 4px 12px; border-radius: 20px; backdrop-filter: blur(8px);
+    }
+    .slides-viewport { flex: 1; overflow: hidden; position: relative; padding: 16px 16px 0; }
+    .slide {
+      position: absolute; inset: 16px 16px 0; display: flex; flex-direction: column; justify-content: center;
+      opacity: 0; transform: translateX(60px); pointer-events: none;
+      transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.4,0,0.2,1);
+      overflow-y: auto; padding-bottom: 16px;
+    }
+    .slide.active { opacity: 1; transform: translateX(0); pointer-events: all; }
+    .slide.exit-left { opacity: 0; transform: translateX(-60px); }
+    .slide-content { max-width: 900px; width: 100%; margin: 0 auto; }
+    .slide-number {
+      display: inline-block; background: rgba(68,183,139,0.2); border: 1px solid var(--accent);
+      color: var(--accent); border-radius: 20px; padding: 4px 14px; font-size: 0.8rem; font-weight: 600; margin-bottom: 16px;
+    }
+    h1.slide-title, h2.slide-title {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      font-weight: 800; line-height: 1.2; margin-bottom: 20px;
+    }
+    h1.slide-title { font-size: clamp(1.6rem, 4vw, 2.6rem); }
+    h2.slide-title { font-size: clamp(1.4rem, 3.5vw, 2.2rem); }
+    .slide-icon { flex-shrink: 0; color: var(--accent); }
+    .lead { font-size: clamp(1rem, 2.5vw, 1.25rem); color: var(--text-muted); line-height: 1.7; margin-bottom: 20px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 8px; }
+    .card {
+      background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius);
+      padding: 20px; backdrop-filter: blur(12px); transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .card:hover { transform: translateY(-4px); box-shadow: var(--shadow); }
+    .card-icon { margin-bottom: 10px; color: var(--accent2); }
+    .card-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; }
+    .card-text { font-size: 0.9rem; color: var(--text-muted); line-height: 1.5; }
+    .check-list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+    .check-list li {
+      display: flex; align-items: flex-start; gap: 12px;
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: 14px; padding: 14px 18px; font-size: clamp(0.95rem, 2vw, 1.05rem); line-height: 1.5;
+      animation: fadeUp 0.5s ease both;
+    }
+    .check-list li:nth-child(1) { animation-delay: 0.05s; }
+    .check-list li:nth-child(2) { animation-delay: 0.12s; }
+    .check-list li:nth-child(3) { animation-delay: 0.19s; }
+    .check-list li:nth-child(4) { animation-delay: 0.26s; }
+    .check-list li:nth-child(5) { animation-delay: 0.33s; }
+    .check-list li:nth-child(6) { animation-delay: 0.40s; }
+    .check-icon { flex-shrink: 0; color: var(--accent3); margin-top: 2px; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    .steps { display: flex; flex-direction: column; gap: 14px; }
+    .step {
+      display: flex; align-items: flex-start; gap: 16px;
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: 14px; padding: 16px 20px; animation: fadeUp 0.5s ease both;
+    }
+    .step-num {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent3));
+      display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.95rem; flex-shrink: 0;
+    }
+    .step-body { flex: 1; }
+    .step-title { font-weight: 700; margin-bottom: 4px; font-size: 1rem; }
+    .step-desc { color: var(--text-muted); font-size: 0.9rem; line-height: 1.5; }
+    .code-block {
+      background: #1a1a2e; border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 16px; overflow: hidden; margin: 16px 0; box-shadow: var(--shadow);
+    }
+    .code-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px; background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .code-dots { display: flex; gap: 6px; }
+    .code-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .code-dot.red { background: #ff5f57; } .code-dot.yellow { background: #febc2e; } .code-dot.green { background: #28c840; }
+    .code-filename { font-size: 0.8rem; color: var(--text-muted); font-family: Consolas, 'Courier New', monospace; }
+    .code-body {
+      padding: 20px; overflow-x: auto; font-family: Consolas, 'Courier New', monospace;
+      font-size: clamp(0.72rem, 1.7vw, 0.88rem); line-height: 1.7;
+    }
+    .code-body pre { white-space: pre; }
+    .kw { color: #ff79c6; } .fn { color: #50fa7b; } .str { color: #f1fa8c; }
+    .num { color: #bd93f9; } .cmt { color: #6272a4; font-style: italic; } .var { color: #8be9fd; } .op { color: #ff79c6; }
+    code.inline {
+      background: rgba(255,255,255,0.1); border-radius: 6px; padding: 2px 8px;
+      font-family: Consolas, 'Courier New', monospace; font-size: 0.9em; color: var(--accent2);
+    }
+    .highlight-box {
+      background: linear-gradient(135deg, rgba(68,183,139,0.15), rgba(255,217,61,0.1));
+      border: 2px solid rgba(68,183,139,0.4); border-radius: var(--radius); padding: 20px 24px; margin-top: 16px;
+    }
+    .highlight-box h3 {
+      display: flex; align-items: center; gap: 8px; font-size: 1.1rem; margin-bottom: 10px; color: var(--accent2);
+    }
+    .line-explain { display: flex; flex-direction: column; gap: 10px; }
+    .line-item {
+      display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start;
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: 12px; padding: 12px 16px; animation: fadeUp 0.4s ease both;
+    }
+    .line-code {
+      font-family: Consolas, 'Courier New', monospace; font-size: 0.8rem; color: var(--accent2);
+      background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 6px; white-space: nowrap;
+    }
+    .line-desc { font-size: 0.9rem; color: var(--text-muted); line-height: 1.5; }
+    .task-box {
+      background: linear-gradient(135deg, rgba(107,203,119,0.15), rgba(77,150,255,0.1));
+      border: 2px solid var(--accent3); border-radius: var(--radius); padding: 24px;
+    }
+    .task-box h3 { display: flex; align-items: center; gap: 8px; font-size: 1.2rem; margin-bottom: 14px; color: var(--accent3); }
+    .tree-block {
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: 16px; padding: 20px 24px; margin: 16px 0;
+      font-family: Consolas, 'Courier New', monospace; font-size: clamp(0.8rem, 1.8vw, 0.95rem);
+      line-height: 1.8; color: var(--text-muted);
+    }
+    .tree-block .folder { color: var(--accent2); font-weight: 700; }
+    .tree-block .file { color: var(--accent3); }
+    .tree-block .desc { color: #6272a4; font-style: italic; }
+    .browser-mock {
+      background: #1e1e32; border: 2px solid var(--card-border); border-radius: 16px;
+      overflow: hidden; margin: 16px 0;
+    }
+    .browser-bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 16px; background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .browser-dots { display: flex; gap: 6px; }
+    .browser-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .browser-dot.r { background: #ff5f57; } .browser-dot.y { background: #febc2e; } .browser-dot.g { background: #28c840; }
+    .browser-url {
+      flex: 1; background: rgba(255,255,255,0.08); border-radius: 8px; padding: 6px 12px;
+      font-family: Consolas, 'Courier New', monospace; font-size: 0.8rem; color: var(--text-muted);
+    }
+    .browser-body {
+      padding: 30px 24px; min-height: 120px;
+    }
+    .admin-mock { font-family: 'Segoe UI', system-ui, sans-serif; }
+    .admin-header {
+      background: #417690; padding: 12px 20px; border-radius: 8px 8px 0 0;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .admin-header-title { color: #fff; font-size: 1rem; font-weight: 700; }
+    .admin-header-user { color: #d4e6f1; font-size: 0.8rem; }
+    .admin-body-inner { background: #f9f9f9; padding: 20px; border-radius: 0 0 8px 8px; }
+    .admin-section-title { color: #417690; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; margin-bottom: 8px; }
+    .admin-table { width: 100%; border-collapse: collapse; }
+    .admin-table th { background: #417690; color: #fff; padding: 8px 12px; font-size: 0.8rem; text-align: left; }
+    .admin-table td { background: #fff; padding: 8px 12px; font-size: 0.85rem; color: #333; border-bottom: 1px solid #ddd; }
+    .admin-table a { color: #417690; text-decoration: underline; font-weight: 600; }
+    .admin-link { color: #417690; font-size: 0.85rem; text-decoration: underline; cursor: pointer; }
+    .admin-btn { display: inline-block; background: #417690; color: #fff; border: none; padding: 6px 16px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; margin-top: 8px; }
+    .admin-login-box {
+      max-width: 340px; margin: 0 auto; background: #fff; border-radius: 8px; padding: 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+    }
+    .admin-login-box h3 { color: #417690; font-size: 1.1rem; margin-bottom: 16px; text-align: center; }
+    .admin-input-group { margin-bottom: 12px; }
+    .admin-input-group label { display: block; color: #333; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; }
+    .admin-input-group input {
+      width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem;
+      background: #fafafa; color: #333;
+    }
+    .next-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+    .next-item {
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: 16px; padding: 20px; text-align: center; animation: fadeUp 0.5s ease both;
+    }
+    .next-icon { margin-bottom: 10px; color: var(--accent); }
+    .next-label { font-weight: 600; font-size: 0.95rem; }
+    .nav-bar {
+      height: var(--nav-h); display: flex; align-items: center; justify-content: space-between;
+      padding: 0 20px; background: rgba(0,0,0,0.35); backdrop-filter: blur(16px);
+      border-top: 1px solid rgba(255,255,255,0.08); flex-shrink: 0;
+    }
+    .nav-btn {
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+      color: var(--text); border-radius: 50px; padding: 10px 22px;
+      font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background 0.2s, transform 0.2s, opacity 0.2s;
+    }
+    .nav-btn:hover:not(:disabled) { background: rgba(255,255,255,0.15); transform: translateY(-2px); }
+    .nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .nav-btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent3)); border-color: transparent; }
+    .nav-dots { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: 50%; }
+    .nav-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.25);
+      cursor: pointer; transition: background 0.2s, transform 0.2s; border: none; padding: 0;
+    }
+    .nav-dot.active { background: var(--accent2); transform: scale(1.3); }
+    @media (max-width: 600px) {
+      .nav-bar { padding: 0 12px; } .nav-btn { padding: 8px 14px; font-size: 0.85rem; }
+      .nav-btn span.label { display: none; } .line-item { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="particles" id="particles"></div>
+
+  <!-- ==================== START SCREEN ==================== -->
+  <div id="start-screen">
+    <div class="start-logo">
+      <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" color="#44b78b">
+        <rect x="8" y="8" width="48" height="48" rx="8"/>
+        <path d="M20 44V20h6c4 0 7 3 7 7s-3 7-7 7h-6" stroke="#44b78b" stroke-width="3" fill="none"/>
+        <circle cx="44" cy="20" r="3" fill="#ffd93d" stroke="none"/>
+      </svg>
+    </div>
+    <div class="start-badge">Урок 2 — Django</div>
+    <h1 class="start-title">Django App, Models<br>и Admin Panel</h1>
+    <p class="start-subtitle">Интерактивный урок для юных программистов 9-15 лет</p>
+    <button class="btn-start" id="btn-start">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      Начать урок
+    </button>
+    <div class="start-features">
+      <div class="start-feature"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg> Приложения</div>
+      <div class="start-feature"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg> Модели</div>
+      <div class="start-feature"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Admin Panel</div>
+      <div class="start-feature"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> 17 слайдов</div>
+    </div>
+  </div>
+
+  <!-- ==================== PRESENTATION ==================== -->
+  <div id="presentation">
+    <div class="progress-bar-wrap">
+      <div class="progress-bar" id="progress-bar"></div>
+      <div class="progress-info" id="progress-info">1 / 17</div>
+    </div>
+    <div class="slides-viewport" id="slides-viewport">
+
+      <!-- ========== SLIDE 1: Цель урока ========== -->
+      <div class="slide active" data-slide="0">
+        <div class="slide-content">
+          <span class="slide-number">Слайд 1 из 17</span>
+          <h1 class="slide-title">
+            <span class="slide-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span>
+            Цель урока
+          </h1>
+          <p class="lead">На прошлом уроке мы установили Django, создали проект и запустили сервер. Сегодня мы пойдём дальше — научимся работать с данными и панелью администратора!</p>
+          <ul class="check-list">
+            <li><span class="check-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>Создать Django приложение</strong> — отдельный модуль для блога</span></li>
+            <li><span class="check-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>Создать модель данных</strong> — описать структуру статьи (Post)</span></li>
+            <li><span class="check-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>Выполнить миграции</strong> — создать таблицы в базе данных</span></li>
+            <li><span class="check-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>Создать суперпользователя</strong> — аккаунт администратора</span></li>
+            <li><span class="check-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>Работать с Admin Panel</strong> — добавлять данные через панель управления</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ========== SLIDE 2: Что такое Django App ========== -->
+      <div class="slide" data-slide="1">
+        <div class="slide-content">
+          <span class="slide-number">Слайд 2 из 17</span>
+          <h2 class="slide-title">
+            <span class="slide-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span>
+            Что такое Django App?
+          </h2>
+          <p class="lead">В Django проект состоит из <strong>приложений (App)</strong>. Каждое приложение отвечает за свою часть сайта.</p>
+          <div class="highlight-box">
+            <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Аналогия: Дом и комнаты</h3>
+            <p style="color:var(--text-muted);line-height:1.6;"><strong>Проект</strong> — это целый <strong>дом</strong>. А каждое <strong>приложение</strong> — это отдельная <strong>комната</strong> в этом доме. Кухня отвечает за еду, спальня — за сон, гостиная — за отдых. Так же и в Django: приложение <strong>blog</strong> отвечает за статьи, <strong>shop</strong> — за товары, <strong>users</strong> — за пользователей.</p>
+          </div>
+          <div class="cards" style="margin-top:20px">
+            <div class="card">
+              <div class="card-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+              <div class="card-title">Проект = Дом</div>
+              <div class="card-text">Весь сайт целиком. Содержит настройки и все приложения.</div>
+            </div>
+            <div class="card">
+              <div class="card-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div>
+              <div class="card-title">App = Комната</div>
+              <div class="card-text">Отдельная часть сайта: блог, магазин, профиль пользователя.</div>
+            </div>
+            <div class="card">
+              <div class="card-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 11-6.22-8.56"/><polyline points="21 3 21 9 15 9"/></svg></div>
+              <div class="card-title">Переиспользование</div>
+              <div class="card-text">Приложение можно перенести в другой проект — как мебель из одной комнаты в другую.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SLIDE 3: Создание приложения blog ========== -->
+      <div class="slide" data-slide="2">
+        <div class="slide-content">
+          <span class="slide-number">Слайд 3 из 17</span>
+          <h2 class="slide-title">
+            <span class="slide-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></span>
+            Создание приложения blog
+          </h2>
+          <p class="lead">Давайте создадим приложение для блога. Убедись, что ты находишься в папке проекта (где лежит <code class="inline">manage.py</code>).</p>
+          <div class="code-block">
+            <div class="code-header"><div class="code-dots"><div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div></div><span class="code-filename">Терминал</span></div>
+            <div class="code-body"><pre><span class="fn">python</span> <span class="var">manage.py</span> <span class="var">startapp</span> <span class="var">blog</span></pre></div>
+          </div>
+          <p class="lead">Django автоматически создал папку <code class="inline">blog</code> со всеми нужными файлами:</p>
+          <div class="tree-block">
+<span class="folder">mysite/</span>
+├── <span class="file">manage.py</span>
+├── <span class="folder">config/</span>
+│   ├── <span class="file">settings.py</span>
+│   ├── <span class="file">urls.py</span>
+│   └── ...
+└── <span class="folder">blog/</span>                <span class="desc">— новое приложение!</span>
+    ├── <span class="file">__init__.py</span>
+    ├── <span class="file">admin.py</span>         <span class="desc">— настройка админ-панели</span>
+    ├── <span class="file">apps.py</span>          <span class="desc">— конфигурация приложения</span>
+    ├── <span class="file">models.py</span>        <span class="desc">— модели данных</span>
+    ├── <span class="file">tests.py</span>         <span class="desc">— тесты</span>
+    ├── <span class="file">views.py</span>         <span class="desc">— представления (страницы)</span>
+    └── <span class="folder">migrations/</span>      <span class="desc">— миграции базы данных</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SLIDE 4: Файлы приложения ========== -->
+      <div class="slide" data-slide="3">
+        <div class="slide-content">
+          <span class="slide-number">Слайд 4 из 17</span>
+          <h2 class="slide-title">
+            <span class="slide-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+            Файлы приложения blog
+          </h2>
+          <p class="lead">Каждый файл в приложении отвечает за свою задачу. Сегодня мы поработаем с тремя из них:</p>
+          <div class="line-explain">
+            <div class="line-item"><span class="line-code">models.py</span><span class="line-desc"><strong>Модели</strong> — описание данных. Здесь мы создадим модель <strong>Post</strong> (статья блога) с полями «заголовок» и «содержание». Это самый важный файл сегодня!</span></div>
+            <div class="line-item"><span class="line-code">admin.py</span><span class="line-desc"><strong>Админ-панель</strong> — здесь мы зарегистрируем модель, чтобы она появилась в панели администратора Django.</span></div>
+            <div class="line-item"><span class="line-code">views.py</span><span class="line-desc"><strong>Представления</strong> — функции, которые показывают страницы пользователю. Сегодня мы его не трогаем.</span></div>
+            <div class="line-item"><span class="line-code">apps.py</span><span class="line-desc"><strong>Конфигурация</strong> — содержит имя приложения. Django использует этот файл при подключении.</span></div>
+            <div class="line-item"><span class="line-code">tests.py</span><span class="line-desc"><strong>Тесты</strong> — здесь пишут автоматические проверки кода. Пока оставим пустым.</span></div>
+            <div class="line-item"><span class="line-code">migrations/</span><span class="line-desc"><strong>Миграции</strong> — Django автоматически создаёт здесь файлы при изменении моделей.</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SLIDE 5: Подключение приложения ========== -->
+      <div class="slide" data-slide="4">
+        <div class="slide-content">
+          <span class="slide-number">Слайд 5 из 17</span>
+          <h2 class="slide-title">
+            <span class="slide-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></span>
+            Подключение приложения
+          </h2>
+          <p class="lead">Django не узнает о новом приложении, пока мы не добавим его в настройки. Открой файл <code class="inline">config/settings.py</code> и найди список <code class="inline">INSTALLED_APPS</code>:</p>
+          <div class="code-block">
+            <div class="code-header"><div class="code-dots"><div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div></div><span class="code-filename">config/settings.py</span></div>
+            <div class="code-body"><pre><span class="var">INSTALLED_APPS</span> <span class="op">=</span> [
+    <span class="str">'django.contrib.admin'</span>,
+    <span class="str">'django.contrib.auth'</span>,
+    <span class="str">'django.contrib.contenttypes'</span>,
+    <span class="str">'django.contrib.sessions'</span>,
+    <span class="str">'django.contrib.messages'</span>,
+    <span class="str">'django.contrib.staticfiles'</span>,
+
+    <span class="cmt"># Наши приложения</span>
+    <span class="str">'blog'</span>,
+]</pre></div>
+          </div>
+          <div class="highlight-box">
+            <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Важно!</h3>
+            <p style="color:var(--text-muted);line-height:1.6;">Добавь <code class="inline">'blog',</code> в самый конец списка. Не забудь <strong>кавычки</strong> и <strong>запятую</strong>! Без этого шага Django не увидит приложение и все следующие шаги не сработают.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SLIDE 6: Что такое модель ========== -->
+      <div class="slide" data-slide="5">
+        <div class="slide-content">
+          <span class="slide-number">Слайд 6 из 17</span>
+          <h2 class="slide-title">
+            <span class="slide-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></span>
+            Что такое модель?
+          </h2>
+          <p class="lead">Модель — это описание данных. Она говорит Django, какую информацию нужно хранить в базе данных.</p>
+          <div class="highlight-box">
+            <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Аналогия: Таблица в Excel</h3>
+            <p style="color:var(--text-muted);line-height:1.6;">Представь таблицу в Excel. Каждая <strong>строка</strong> — это одна запись (например, одна статья). Каждый <strong>столбец</strong> — это поле (заголовок, текст, дата). Модель в Django — это описание такой таблицы на языке Python.</p>
+          </div>
+          <div class="cards" style="margin-top:20px">
+            <div class="card">
+              <div class="card-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg></div>
+              <div class="card-title">Заголовок (title)</div>
+              <div class="card-text">Короткий текст — название статьи. Ограничен 255 символами.</div>
+            </div>
+            <div class="card">
+              <div class="card-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+              <div class="card-title">Содержание (content)</div>
+              <div class="card-text">Длинный текст — основная часть статьи. Без ограничения длины.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SLIDE 7: Создание модели Post ========== -->
+      <div class="slide" data-slide="6">
+        <div class="slide-content">
+          <span class="slide-number">Слайд 7 из 17</span>
+          <h2 class="slide-title">
+            <span class="slide-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
+            Создание модели Post
+          </h2>
+          <p class="lead">Откройте файл <code class="inline">blog/models.py</code> и замените его содержимое на этот код:</p>
+          <div class="code-block">
+            <div class="code-header"><div class="code-dots"><div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div></div><span class="code-filename">blog/models.py</span></div>
+            <div class="code-body"><pre><span class="kw">from</span> <span class="var">django.db</span> <span class="kw">import</span> <span class="var">models</span>
+
+
+<span class="kw">class</span> <span class="fn">Post</span>(<span class="var">models</span>.<span class="var">Model</span>):
+    <span class="var">title</span> <span class="op">=</span> <span class="var">models</span>.<span class="fn">CharField</span>(<span class="var">max_length</span><span class="op">=</span><span class="num">255</span>)
+    <span class="var">content</span> <span class="op">=</span> <span class="var">models</span>.<span class="fn">TextField</span>()
+
+    <span class="kw">def</span> <span class="fn">__str__</span>(<span class="var">self</span>):
+        <span class="kw">return</span> <span class="var">self</span>.<span class="var">title</span></pre></div>
+          </div>
+          <div class="line-explain">
+            <div class="line-item"><span class="line-code">from django.db import models</span><span class="line-desc">Импортируем модуль <strong>models</strong> из Django — в нём находятся все инструменты для создания моделей.</span></div>
+            <div class="line-item"><span class="line-code">class Post(models.Model):</span><span class="line-desc">Создаём класс <strong>Post</strong>, который наследуется от <strong>models.Model</strong>. Это значит — «Post — это модель Django».</span></div>
+            <div class="line-item"><span class="line-code">title = models.CharField(max_length=255)</span><span class="line-desc"><strong>CharField</strong> — поле для короткого текста. <strong>max_length=255</strong> — максимум 255 символов. Подходит для заголовков.</span></div>
+            <div class="line-item"><span class="line-code">content = models.TextField()</span><span class="line-desc"><strong>TextField</strong> — поле для длинного текста без ограничения. Подходит для содержания статьи.</span></div>
+            <div class="line-item"><span class="line-code">def __str__(self):</span><span class="line-desc">Специальный метод, который говорит Python, как отображать объект в виде текста.</span></div>
+            <div class="line-item"><span class="line-code">return self.title</span><span class="line-desc">Когда Django показывает объект Post — он покажет его <strong>заголовок</strong>, а не непонятный текст вроде «Post object (1)».</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SLIDE 8: Что такое миграции ========== -->
+      <div class="slide" data-slide="7">
+        <div class="slide-content">
+          <span class="slide-number">Слайд 8 из 17</span>
+          <h2 class="slide-title">
+            <span class="slide-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.22-8.56"/><polyline points="21 3 21 9 15 9"/></svg></span>
+            Что такое миграции?
+          </h2>
+          <p class="lead">Мы описали модель в Python-коде, но база данных пока ничего об этом не знает. <strong>Миграции</strong> — это мост между кодом и базой данных.</p>
+          <div class="steps">
+            <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">makemigrations</div><div class="step-desc">Django читает модель и создаёт <strong>файл-инструкцию</strong> — что нужно изменить в базе данных. Как чертёж дома перед строительством.</div></div></div>
+            <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">migrate</div><div class="step-desc">Django выполняет инструкцию и <strong>создаёт таблицу</strong> в базе данных. Как строитель строит дом по чертежу.</div></div></div>
+          </div>
+          <div class="highlight-box" style="margin-top:20px">
+            <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Простыми словами</h3>
+            <p style="color:var(--text-muted);line-height:1.6;"><strong>makemigrations</strong> = «Запомни, что я хочу изменить»<br><strong>migrate</strong> = «Сделай это изменение прямо сейчас»<br><br>Эти две команды нужно выполнять каждый раз, когда ты меняешь модели!</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SLIDE 9: Выполнение миграций ========== -->
+      <div class="slide" data-slide="8">
+        <div class="slide-content">
+          <span class="slide-number">Слайд 9 из 17</span>
+          <h2 class="slide-title">
+            <span class="slide-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17l6-6-6-6"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
+            Выполнение миграций
+          </h2>
+          <p class="lead">Откройте терминал и выполните две команды по очереди:</p>
+          <div class="code-block">
+            <div class="code-header"><div class="code-dots"><div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div></div><span class="code-filename">Терминал — Шаг 1: Создание миграции</span></div>
+            <div class="code-body"><pre><span class="fn">python</span> <span class="var">manage.py</span> <span class="var">makemigrations</span></pre></div>
+          </div>
+          <p class="lead">В терминале ты увидишь сообщение:</p>
+          <div class="code-block">
+            <div class="code-header"><div class="code-dots"><div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div></div><span class="code-filename">Результат</span></div>
+            <div class="code-body"><pre><span class="var">Migrations for</span> <span class="str">'blog'</span>:
+  <span class="var">blog/migrations/0001_initial.py</span>
+    <span class="op">-</span> Create model Post</pre></div>
+          </div>
+          <div class="code-block">
+            <div class="code-header"><div class="code-dots"><div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div></div><span class="code-filename">Терминал — Шаг 2: Применение миграции</span></div>
+            <div class="code-body"><pre><span class="fn">python</span> <span class="var">manage.py</span> <span class="var">migrate</span></pre></div>
+          </div>
+          <p class="lead">Django применит все миграции и создаст таблицы в базе данных. Ты увидишь список с надписями <code class="inline">OK</code>.</p>
+          <div class="highlight-box">
+            <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Готово!</h3>
+            <p style="color:var(--text-muted);line-height:1.6;">Теперь в базе данных есть таблица <strong>blog_post</strong> с полями <strong>id</strong>, <strong>title</strong> и <strong>content</strong>. Django автоматически добавил поле <strong>id</strong> — уникальный номер каждой записи.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SLIDE 10: Что такое Admin Panel ========== -->
+      <div class="slide" data-slide="9">
+        <div class="slide-content">
+          <span class="slide-number">Слайд 10 из 17</span>
+          <h2 class="slide-title">
+            <span class="slide-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+            Что такое Admin Panel?
+          </h2>
+          <p class="lead">Django Admin Panel — это <strong>готовая панель управления</strong> сайтом. Она позволяет добавлять, редактировать и удалять данные через удобный интерфейс в браузере — без написания кода!</p>
+          <div class="cards">
+            <div class="card">
+              <div class="card-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div>
+              <div class="card-title">Добавлять данные</div>
+              <div class="card-text">Создавай новые статьи, товары, пользователей прямо в браузере.</div>
+            </div>
+            <div class="card">
+              <div class="card-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+              <div class="card-title">Редактировать</div>
+              <div class="card-text">Изменяй заголовки, тексты и другие поля одним кликом.</div>
+            </div>
+            <div class="card">
+              <div class="card-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></div>
+              <div class="card-title">Удалять</div>
+              <div class="card-text">Удаляй ненужные записи — Django спросит подтверждение.</div>
+            </div>
+            <div class="card">
+              <div class="card-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+              <div class="card-title">Безопасность</div>
+              <div class="card-text">Только администратор с паролем может войти в панель.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SLIDE 11: Регистрация модели в admin.py ========== -->
+      <div class="slide" data-slide="10">
+        <div class="slide-content">
+          <span class="slide-number">Слайд 11 из 17</span>
+          <h2 class="slide-title">
+            <span class="slide-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg></span>
+            Регистрация модели в Admin Panel
+          </h2>
+          <p class="lead">Чтобы модель <strong>Post</strong> появилась в админ-панели, нужно зарегистрировать её. Откройте файл <code class="inline">blog/admin.py</code> и замените его содержимое:</p>
+          <div class="code-block">
+            <div class="code-header"><div class="code-dots"><div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div></div><span class="code-filename">blog/admin.py</span></div>
+            <div class="code-body"><pre><span class="kw">from</span> <span class="var">django.contrib</span> <span class="kw">import</span> <span class="var">admin</span>
+<span class="kw">from</span> .<span class="var">models</span> <span class="kw">import</span> <span class="var">Post</span>
+
+<span class="var">admin</span>.<span class="var">site</span>.<span class="fn">register</span>(<span class="var">Post</span>)</pre></div>
+          </div>
+          <div class="line-explain">
+            <div class="line-item"><span class="line-code">from django.contrib import admin</span><span class="line-desc">Импортируем модуль <strong>admin</strong> из Django — он уже был в файле по умолчанию.</span></div>
+            <div class="line-item"><span class="line-code">from .models import Post</span><span class="line-desc">Импортируем нашу модель <strong>Post</strong> из файла <strong>models.py</strong>. Точка <strong>.</strong> означает «из текущей папки».</span></div>
+            <div class="line-item"><span class="line-code">admin.site.register(Post)</span><span class="line-desc">Регистрируем модель <strong>Post</strong> в админ-панели. Теперь Django покажет её в панели управления.</span></div>
+          </div>
+          <div class="highlight-box">
+            <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Запомни!</h3>
+            <p style="color:var(--text-muted);line-height:1.6;">Каждую модель нужно регистрировать отдельно. Если создашь модель <strong>Category</strong> — добавь <code class="inline">admin.site.register(Category)</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SLIDE 12: Создание суперпользователя ========== -->
+      <div class="slide" data-slide="11">
+        <div class="slide-content">
+          <span class="slide-number">Слайд 12 из 17</span>
+          <h2 class="slide-title">
+            <span class="slide-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+            Создание суперпользователя
+          </h2>
+          <p class="lead">Чтобы войти в админ-панель, нужен аккаунт администратора — <strong>суперпользователь (superuser)</strong>. Выполни команду в терминале:</p>
+          <div class="code-block">
+            <div class="code-header"><div class="code-dots"><div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div></div><span class="code-filename">Терминал</span></div>
+            <div class="code-body"><pre><span class="fn">python</span> <span class="var">manage.py</span> <span class="var">createsuperuser</span></pre></div>
+          </div>
+          <p class="lead">Django попросит ввести данные. Вводи по очереди:</p>
+          <div class="code-block">
+            <div class="code-header"><div class="code-dots"><div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div></div><span class="code-filename">Терминал — процесс создания</span></div>
+            <div class="code-body"><pre><span class="var">Username</span> (leave blank to use 'user'): <span class="str">admin</span>
+<span class="var">Email address</span>: <span class="str">admin@example.com</span>
+<span class="var">Password</span>: <span class="str">********</span>
+<span class="var">Password (again)</span>: <span class="str">********</span>
+<span class="var">Superuser created successfully.</span></pre></div>
+          </div>
+          <div class="line-explain">
+            <div class="line-item"><span class="line-code">Username</span><span class="line-desc">Имя пользователя для входа. Мы написали <strong>admin</strong>, но можно выбрать любое имя.</span></div>
+            <div class="line-item"><span class="line-code">Email address</span><span class="line-desc">Электронная почта. Можно ввести любую — на уроке это не важно.</span></div>
+            <div class="line-item"><span class="line-code">Password</span><span class="line-desc">Пароль для входа. <strong>Символы не отображаются при вводе</strong> — это нормально! Просто вводи и нажимай Enter.</span></div>
+            <div class="line-item"><span class="line-code">Password (again)</span><span class="line-desc">Повтори тот же пароль для подтверждения.</span></div>
+          </div>
+          <div class="highlight-box">
+            <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Не волнуйся!</h3>
+            <p style="color:var(--text-muted);line-height:1.6;">Когда ты вводишь пароль — на экране ничего не появляется. Это сделано для безопасности. Просто введи пароль и нажми <strong>Enter</strong>. Если Django скажет, что пароль слишком простой — введи <strong>y</strong> и нажми Enter, чтобы подтвердить.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SLIDE 13: Запуск и вход в админ-панель ========== -->
+      <div class="slide" data-slide="12">
+        <div class="slide-content">
+          <span class="slide-number">Слайд 13 из 17</span>
+          <h2 class="slide-title">
+            <span class="slide-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>
+            Запуск и вход в Admin Panel
+          </h2>
+          <p class="lead">Запусти сервер и открой панель администратора в браузере:</p>
+          <div class="code-block">
+            <div class="code-header"><div class="code-dots"><div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div></div><span class="code-filename">Терминал</span></div>
+            <div class="code-body"><pre><span class="fn">python</span> <span class="var">manage.py</span> <span class="var">runserver</span></pre></div>
+          </div>
+          <p class="lead">Открой в браузере адрес: <code class="inline">http://127.0.0.1:8000/admin/</code></p>
+          <div class="browser-mock">
+            <div class="browser-bar">
+              <div class="browser-dots"><div class="browser-dot r"></div><div class="browser-dot y"></div><div class="browser-dot g"></div></div>
+              <div class="browser-url">http://127.0.0.1:8000/admin/</div>
+            </div>
+            <div class="browser-body">
+              <div class="admin-mock">
+                <div class="admin-login-box">
+                  <h3>Django administration</h3>
+                  <div class="admin-input-group">
+                    <label>Username:</label>
+                    <input type="text" value="admin" readonly>
+                  </div>
+                  <div class="admin-input-group">
+                    <label>Password:</label>
+                    <input type="password" value="12345678" readonly>
+                  </div>
+                  <button class="admin-btn" style="width:100%;margin-top:4px">Log in</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="lead" style="margin-top:16px">Введи <strong>Username</strong> и <strong>Password</strong>, которые ты создал на предыдущем шаге, и нажми <strong>Log in</strong>.</p>
+        </div>
+      </div>
+
+      <!-- ========== SLIDE 14: Админ-панель после входа ========== -->
+      <div class="slide" data-slide="13">
+        <div class="slide-content">
+          <span class="slide-number">Слайд 14 из 17</span>
+          <h2 class="slide-title">
+            <span class="slide-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg></span>
+            Админ-панель — что ты увидишь
+          </h2>
+          <p class="lead">После входа ты увидишь панель управления Django с нашей моделью <strong>Posts</strong>:</p>
+          <div class="browser-mock">
+            <div class="browser-bar">
+              <div class="browser-dots"><div class="browser-dot r"></div><div class="browser-dot y"></div><div class="browser-dot g"></div></div>
+              <div class="browser-url">http://127.0.0.1:8000/admin/</div>
+            </div>
+            <div class="browser-body" style="padding:0">
+              <div class="admin-mock">
+                <div class="admin-header">
+                  <span class="admin-header-title">Django administration</span>
+                  <span class="admin-header-user">Welcome, admin. View site / Change password / Log out</span>
+                </div>
+                <div class="admin-body-inner">
+                  <div style="margin-bottom:20px">
+                    <div class="admin-section-title">BLOG</div>
+                    <table class="admin-table">
+                      <tr><th>Model</th><th>Actions</th></tr>
+                      <tr><td><a>Posts</a></td><td><span class="admin-link">+ Add</span> &nbsp; <span class="admin-link">Change</span></td></tr>
+                    </table>
+                  </div>
+                  <div>
+                    <div class="admin-section-title">AUTHENTICATION AND AUTHORIZATION</div>
+                    <table class="admin-table">
+                      <tr><th>Model</th><th>Actions</th></tr>
+                      <tr><td><a>Groups</a></td><td><span class="admin-link">+ Add</span> &nbsp; <span class="admin-link">Change</span></td></tr>
+                      <tr><td><a>Users</a></td><td><span class="admin-link">+ Add</span> &nbsp; <span class="admin-link">Change</span></td></tr>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="line-explain" style="margin-top:16px">
+            <div class="line-item"><span class="line-code">BLOG → Posts</span><span class="line-desc">Наша модель <strong>Post</strong> из приложения <strong>blog</strong>. Нажми <strong>+ Add</strong>, чтобы создать первую статью!</span></div>
+            <div class="line-item"><span class="line-code">Groups / Users</span><span class="line-desc">Стандартные модели Django для управления пользователями и группами.</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SLIDE 15: Добавление записи ========== -->
+      <div class="slide" data-slide="14">
+        <div class="slide-content">
+          <span class="slide-number">Слайд 15 из 17</span>
+          <h2 class="slide-title">
+            <span class="slide-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+            Добавление записи через Admin Panel
+          </h2>
+          <p class="lead">Нажми <strong>+ Add</strong> рядом с <strong>Posts</strong>. Ты увидишь форму для создания новой статьи:</p>
+          <div class="browser-mock">
+            <div class="browser-bar">
+              <div class="browser-dots"><div class="browser-dot r"></div><div class="browser-dot y"></div><div class="browser-dot g"></div></div>
+              <div class="browser-url">http://127.0.0.1:8000/admin/blog/post/add/</div>
+            </div>
+            <div class="browser-body" style="padding:0">
+              <div class="admin-mock">
+                <div class="admin-header">
+                  <span class="admin-header-title">Django administration</span>
+                  <span class="admin-header-user">Welcome, admin</span>
+                </div>
+                <div class="admin-body-inner">
+                  <h3 style="color:#333;font-size:1rem;margin-bottom:16px">Add post</h3>
+                  <div class="admin-input-group">
+                    <label>Title:</label>
+                    <input type="text" value="Моя первая статья" readonly>
+                  </div>
+                  <div class="admin-input-group">
+                    <label>Content:</label>
+                    <textarea style="width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:4px;font-size:0.85rem;background:#fafafa;color:#333;min-height:80px;resize:vertical;font-family:inherit" readonly>Привет! Это моя первая статья в блоге на Django. Я учусь создавать сайты!</textarea>
+                  </div>
+                  <button class="admin-btn">SAVE</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="steps" style="margin-top:16px">
+            <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Заполни Title</div><div class="step-desc">Введи заголовок статьи, например: <strong>«Моя первая статья»</strong></div></div></div>
+            <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Заполни Content</div><div class="step-desc">Введи текст статьи — любой текст, какой хочешь.</div></div></div>
+            <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Нажми SAVE</div><div class="step-desc">Django сохранит статью в базе данных. Ты увидишь её в списке постов!</div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SLIDE 16: Практика на уроке ========== -->
+      <div class="slide" data-slide="15">
+        <div class="slide-content">
+          <span class="slide-number">Слайд 16 из 17</span>
+          <h2 class="slide-title">
+            <span class="slide-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg></span>
+            Практика на уроке
+          </h2>
+          <p class="lead">Выполни все три задания прямо сейчас!</p>
+          <div class="task-box">
+            <h3><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> Задание 1: Создай модель Category</h3>
+            <p style="color:var(--text-muted);font-size:0.9rem;line-height:1.5;margin-bottom:12px">Открой <code class="inline">blog/models.py</code> и добавь новую модель <strong>Category</strong> после модели Post:</p>
+            <div class="code-block" style="margin:12px 0">
+              <div class="code-header"><div class="code-dots"><div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div></div><span class="code-filename">blog/models.py</span></div>
+              <div class="code-body"><pre><span class="kw">from</span> <span class="var">django.db</span> <span class="kw">import</span> <span class="var">models</span>
+
+
+<span class="kw">class</span> <span class="fn">Post</span>(<span class="var">models</span>.<span class="var">Model</span>):
+    <span class="var">title</span> <span class="op">=</span> <span class="var">models</span>.<span class="fn">CharField</span>(<span class="var">max_length</span><span class="op">=</span><span class="num">255</span>)
+    <span class="var">content</span> <span class="op">=</span> <span class="var">models</span>.<span class="fn">TextField</span>()
+
+    <span class="kw">def</span> <span class="fn">__str__</span>(<span class="var">self</span>):
+        <span class="kw">return</span> <span class="var">self</span>.<span class="var">title</span>
+
+
+<span class="kw">class</span> <span class="fn">Category</span>(<span class="var">models</span>.<span class="var">Model</span>):
+    <span class="var">name</span> <span class="op">=</span> <span class="var">models</span>.<span class="fn">CharField</span>(<span class="var">max_length</span><span class="op">=</span><span class="num">100</span>)
+
+    <span class="kw">def</span> <span class="fn">__str__</span>(<span class="var">self</span>):
+        <span class="kw">return</span> <span class="var">self</span>.<span class="var">name</span></pre></div>
+            </div>
+          </div>
+          <div class="task-box" style="margin-top:16px">
+            <h3><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> Задание 2: Зарегистрируй Category в admin.py</h3>
+            <div class="code-block" style="margin:12px 0">
+              <div class="code-header"><div class="code-dots"><div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div></div><span class="code-filename">blog/admin.py</span></div>
+              <div class="code-body"><pre><span class="kw">from</span> <span class="var">django.contrib</span> <span class="kw">import</span> <span class="var">admin</span>
+<span class="kw">from</span> .<span class="var">models</span> <span class="kw">import</span> <span class="var">Post</span>, <span class="var">Category</span>
+
+<span class="var">admin</span>.<span class="var">site</span>.<span class="fn">register</span>(<span class="var">Post</span>)
+<span class="var">admin</span>.<span class="var">site</span>.<span class="fn">register</span>(<span class="var">Category</span>)</pre></div>
+            </div>
+          </div>
+          <div class="task-box" style="margin-top:16px">
+            <h3><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> Задание 3: Выполни миграции</h3>
+            <div class="code-block" style="margin:12px 0">
+              <div class="code-header"><div class="code-dots"><div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div></div><span class="code-filename">Терминал</span></div>
+              <div class="code-body"><pre><span class="fn">python</span> <span class="var">manage.py</span> <span class="var">makemigrations</span>
+<span class="fn">python</span> <span class="var">manage.py</span> <span class="var">migrate</span></pre></div>
+            </div>
+            <p style="color:var(--text-muted);font-size:0.9rem;line-height:1.5;">Запусти сервер и проверь — в админ-панели должна появиться модель <strong>Categorys</strong> рядом с <strong>Posts</strong>!</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SLIDE 17: Домашнее задание ========== -->
+      <div class="slide" data-slide="16">
+        <div class="slide-content">
+          <span class="slide-number">Слайд 17 из 17</span>
+          <h2 class="slide-title">
+            <span class="slide-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+            Домашнее задание
+          </h2>
+          <p class="lead">Повтори всё, что мы делали на уроке, но для нового приложения — магазина!</p>
+          <ul class="check-list">
+            <li><span class="check-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></span><span><strong>Шаг 1: Создай приложение shop</strong><br><code class="inline">python manage.py startapp shop</code><br>Добавь <code class="inline">'shop',</code> в <strong>INSTALLED_APPS</strong> в файле <code class="inline">config/settings.py</code></span></li>
+            <li><span class="check-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span><span><strong>Шаг 2: Создай модель Product</strong> в файле <code class="inline">shop/models.py</code>:</span></li>
+          </ul>
+          <div class="code-block" style="margin:12px 0">
+            <div class="code-header"><div class="code-dots"><div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div></div><span class="code-filename">shop/models.py</span></div>
+            <div class="code-body"><pre><span class="kw">from</span> <span class="var">django.db</span> <span class="kw">import</span> <span class="var">models</span>
+
+
+<span class="kw">class</span> <span class="fn">Product</span>(<span class="var">models</span>.<span class="var">Model</span>):
+    <span class="var">name</span> <span class="op">=</span> <span class="var">models</span>.<span class="fn">CharField</span>(<span class="var">max_length</span><span class="op">=</span><span class="num">255</span>)
+    <span class="var">price</span> <span class="op">=</span> <span class="var">models</span>.<span class="fn">IntegerField</span>()
+    <span class="var">description</span> <span class="op">=</span> <span class="var">models</span>.<span class="fn">TextField</span>()
+
+    <span class="kw">def</span> <span class="fn">__str__</span>(<span class="var">self</span>):
+        <span class="kw">return</span> <span class="var">self</span>.<span class="var">name</span></pre></div>
+          </div>
+          <ul class="check-list">
+            <li><span class="check-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg></span><span><strong>Шаг 3: Зарегистрируй модель</strong> — открой <code class="inline">shop/admin.py</code> и добавь:</span></li>
+          </ul>
+          <div class="code-block" style="margin:12px 0">
+            <div class="code-header"><div class="code-dots"><div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div></div><span class="code-filename">shop/admin.py</span></div>
+            <div class="code-body"><pre><span class="kw">from</span> <span class="var">django.contrib</span> <span class="kw">import</span> <span class="var">admin</span>
+<span class="kw">from</span> .<span class="var">models</span> <span class="kw">import</span> <span class="var">Product</span>
+
+<span class="var">admin</span>.<span class="var">site</span>.<span class="fn">register</span>(<span class="var">Product</span>)</pre></div>
+          </div>
+          <ul class="check-list">
+            <li><span class="check-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.22-8.56"/><polyline points="21 3 21 9 15 9"/></svg></span><span><strong>Шаг 4: Миграции</strong><br><code class="inline">python manage.py makemigrations</code><br><code class="inline">python manage.py migrate</code></span></li>
+            <li><span class="check-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span><strong>Шаг 5: Создай суперпользователя</strong> (если ещё не создан)<br><code class="inline">python manage.py createsuperuser</code></span></li>
+            <li><span class="check-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></span><span><strong>Шаг 6: Проверь результат</strong><br>Запусти сервер: <code class="inline">python manage.py runserver</code><br>Открой <code class="inline">http://127.0.0.1:8000/admin/</code><br>Убедись, что <strong>Product</strong> отображается в панели. Добавь 2-3 товара и сделай скриншот для учителя!</span></li>
+          </ul>
+          <div class="highlight-box" style="text-align:center;margin-top:16px">
+            <h3 style="justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Урок завершён!</h3>
+            <p style="color:var(--text-muted);line-height:1.7">Ты научился создавать приложения, модели, миграции и работать с админ-панелью Django. На следующем уроке мы научимся отображать данные из базы на веб-страницах с помощью шаблонов. До встречи!</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <nav class="nav-bar">
+      <button class="nav-btn" id="btn-prev" disabled><span>&#9664;</span><span class="label">Назад</span></button>
+      <div class="nav-dots" id="nav-dots"></div>
+      <button class="nav-btn primary" id="btn-next"><span class="label">Вперёд</span><span>&#9654;</span></button>
+    </nav>
+  </div>
+
+  <script>
+  (function () {
+    const TOTAL = 17;
+    let current = 0, animating = false;
+    const startScreen = document.getElementById('start-screen');
+    const presentation = document.getElementById('presentation');
+    const btnStart = document.getElementById('btn-start');
+    const btnPrev = document.getElementById('btn-prev');
+    const btnNext = document.getElementById('btn-next');
+    const progressBar = document.getElementById('progress-bar');
+    const progressInfo = document.getElementById('progress-info');
+    const navDots = document.getElementById('nav-dots');
+    const slides = document.querySelectorAll('.slide');
+
+    for (let i = 0; i < TOTAL; i++) {
+      const dot = document.createElement('button');
+      dot.className = 'nav-dot' + (i === 0 ? ' active' : '');
+      dot.setAttribute('aria-label', 'Слайд ' + (i + 1));
+      dot.addEventListener('click', () => goTo(i));
+      navDots.appendChild(dot);
+    }
+    const dots = navDots.querySelectorAll('.nav-dot');
+
+    const particlesEl = document.getElementById('particles');
+    const colors = ['#44b78b', '#ffd93d', '#6bcb77', '#4d96ff', '#2d8f6f', '#c77dff'];
+    for (let i = 0; i < 30; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const size = Math.random() * 12 + 4;
+      p.style.cssText = 'width:' + size + 'px;height:' + size + 'px;left:' + (Math.random()*100) + '%;background:' + colors[Math.floor(Math.random()*colors.length)] + ';animation-duration:' + (Math.random()*15+10) + 's;animation-delay:' + (Math.random()*10) + 's';
+      particlesEl.appendChild(p);
+    }
+
+    function updateUI() {
+      progressBar.style.width = ((current + 1) / TOTAL * 100) + '%';
+      progressInfo.textContent = (current + 1) + ' / ' + TOTAL;
+      btnPrev.disabled = current === 0;
+      btnNext.innerHTML = current === TOTAL - 1
+        ? '<span class="label">Готово!</span><span>&#10003;</span>'
+        : '<span class="label">Вперёд</span><span>&#9654;</span>';
+      dots.forEach((d, i) => d.classList.toggle('active', i === current));
+    }
+
+    function goTo(index) {
+      if (animating || index === current || index < 0 || index >= TOTAL) return;
+      animating = true;
+      const oldSlide = slides[current], newSlide = slides[index];
+      const goingForward = index > current;
+      oldSlide.classList.remove('active');
+      oldSlide.style.transform = goingForward ? 'translateX(-60px)' : 'translateX(60px)';
+      newSlide.style.transform = goingForward ? 'translateX(60px)' : 'translateX(-60px)';
+      requestAnimationFrame(() => { newSlide.classList.add('active'); newSlide.style.transform = 'translateX(0)'; });
+      current = index;
+      updateUI();
+      setTimeout(() => { oldSlide.style.transform = ''; animating = false; }, 450);
+    }
+
+    btnStart.addEventListener('click', () => { startScreen.classList.add('hidden'); presentation.classList.add('active'); });
+    btnNext.addEventListener('click', () => { if (current < TOTAL - 1) goTo(current + 1); });
+    btnPrev.addEventListener('click', () => { if (current > 0) goTo(current - 1); });
+    document.addEventListener('keydown', (e) => {
+      if (!presentation.classList.contains('active')) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); btnStart.click(); }
+        return;
+      }
+      if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); if (current < TOTAL - 1) goTo(current + 1); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); if (current > 0) goTo(current - 1); }
+    });
+    updateUI();
+  })();
+  </script>
+</body>
+</html>
